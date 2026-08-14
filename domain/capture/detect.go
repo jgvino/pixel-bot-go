@@ -24,6 +24,15 @@ func DetectTemplateDetailed(frame *image.RGBA, tmpl image.Image, cfg *config.Con
 	if err := local.Validate(); err != nil {
 		return MultiScaleResult{}, err
 	}
+	if local.UseColorDetect {
+		return DetectByColor(frame, ColorOptions{
+			RedDelta:  local.ColorRedDelta,
+			BlueDelta: local.ColorBlueDelta,
+			MinValue:  local.ColorMinValue,
+			MinPixels: local.ColorMinPixels,
+			MaxPixels: local.ColorMaxPixels,
+		}), nil
+	}
 	res := MultiScaleMatch(frame, tmpl, MultiScaleOptions{
 		Scales:    nil,
 		MinScale:  local.MinScale,

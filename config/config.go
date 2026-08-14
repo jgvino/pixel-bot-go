@@ -42,6 +42,21 @@ type Config struct {
 
 	// DarkMode persists user preference for dark theme across sessions.
 	DarkMode bool `json:"dark_mode"`
+
+	// UseColorDetect switches detection from NCC template matching to
+	// hue-based blob detection. When true, MinScale/MaxScale/ScaleStep/
+	// Threshold/Stride/Refine/StopOnScore/ReturnBestEven are ignored.
+	UseColorDetect bool `json:"use_color_detect"`
+	// ColorRedDelta is how much R must exceed B for a red feather pixel.
+	ColorRedDelta int `json:"color_red_delta"`
+	// ColorBlueDelta is how much B must exceed R for a blue feather pixel.
+	ColorBlueDelta int `json:"color_blue_delta"`
+	// ColorMinValue is the minimum channel brightness; rejects dark noise.
+	ColorMinValue int `json:"color_min_value"`
+	// ColorMinPixels is the smallest blob accepted as a bobber.
+	ColorMinPixels int `json:"color_min_pixels"`
+	// ColorMaxPixels is the largest blob accepted; rejects large regions.
+	ColorMaxPixels int `json:"color_max_pixels"`
 }
 
 // Accessor helpers to satisfy fishing.ConfigLite without exposing struct embedding.
@@ -68,6 +83,12 @@ func DefaultConfig() *Config {
 		CooldownSeconds:        8, // from pixle_bot_config.json
 		AnalysisScale:          1.0,
 		DarkMode:               true, // from pixle_bot_config.json
+		UseColorDetect:         true,
+		ColorRedDelta:          60,
+		ColorBlueDelta:         50,
+		ColorMinValue:          100,
+		ColorMinPixels:         25,
+		ColorMaxPixels:         4000,
 	}
 }
 
@@ -129,6 +150,23 @@ func (c *Config) Validate() error {
 	}
 	if c.AnalysisScale > 1.0 {
 		c.AnalysisScale = 1.0
+	}
+
+	// Color detection clamps.
+	if c.ColorRedDelta <= 0 {
+		c.ColorRedDelta = 60
+	}
+	if c.ColorBlueDelta <= 0 {
+		c.ColorBlueDelta = 50
+	}
+	if c.ColorMinValue <= 0 {
+		c.ColorMinValue = 100
+	}
+	if c.ColorMinPixels <= 0 {
+		c.ColorMinPixels = 25
+	}
+	if c.ColorMaxPixels <= c.ColorMinPixels {
+		c.ColorMaxPixels = c.ColorMinPixels * 160
 	}
 
 	return nil

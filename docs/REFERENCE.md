@@ -51,6 +51,12 @@ return (x,y,score,scale,found?)
 | MinScale/MaxScale/ScaleStep | Scale search range                          | Wide + tiny step = heavier workload    |
 | StopOnScore                 | Early exit threshold                        | Saves time if early strong match       |
 | ReturnBestEven              | Return coords even below threshold          | Aids tuning & diagnostics              |
+| UseColorDetect              | Hue-based detection instead of NCC          | Ignores all scale/threshold settings   |
+| ColorRedDelta/ColorBlueDelta| Channel separation required per feather px  | ↑ stricter, fewer false pixels         |
+| ColorMinValue               | Minimum channel brightness                  | ↑ rejects shadow noise                 |
+| ColorMinPixels/ColorMaxPixels| Accepted blob size range                   | Narrow = fewer false positives         |
+
+See [Color Detection](COLOR_DETECTION.md) for the full color mode reference.
 
 ## Capabilities
 * Watch a screen region for the bobber template.

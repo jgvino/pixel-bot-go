@@ -77,6 +77,7 @@ blue. The discriminating power multiplies rather than adds.
 | ColorMinBluePixels | Smallest accepted blue cluster | Blue is scarcer; keep low |
 | ColorMaxPairDistance | Max centroid gap between red and blue | ↑ looser pairing, ↓ rejects valid bobbers |
 | ColorMaxPixels | Largest blob accepted | ↓ rejects UI panels and large terrain features |
+| CastSettleMs | Detection blocked for this long after a cast | ↑ ignores the fading old bobber, ↓ faster reacquire |
 
 When `UseColorDetect` is `true`, these settings are **ignored**: `MinScale`,
 `MaxScale`, `ScaleStep`, `Threshold`, `Stride`, `Refine`, `StopOnScore`,
@@ -98,6 +99,7 @@ Start with defaults. Adjust one value at a time.
 | Locks onto UI elements | Lower `ColorMaxPixels` to 1500 |
 | Works in daylight, fails at night | Lower `ColorMinValue` to 70 |
 | Finds a bobber 0.2s after cast | Blob thresholds too loose; raise all three deltas |
+| Locks onto the fading previous bobber | Raise `CastSettleMs` to 3000 |
 
 ### Verifying a real detection
 

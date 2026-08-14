@@ -63,6 +63,10 @@ type Config struct {
 	ColorMaxPairDistance int `json:"color_max_pair_distance"`
 	// ColorMaxPixels is the largest blob accepted; rejects large regions.
 	ColorMaxPixels int `json:"color_max_pixels"`
+
+	// CastSettleMs blocks detection for this many milliseconds after a cast,
+	// so the fading previous bobber is not mistaken for the new one.
+	CastSettleMs int `json:"cast_settle_ms"`
 }
 
 // Accessor helpers to satisfy fishing.ConfigLite without exposing struct embedding.
@@ -97,6 +101,7 @@ func DefaultConfig() *Config {
 		ColorMinBluePixels:     5,
 		ColorMaxPairDistance:   40,
 		ColorMaxPixels:         4000,
+		CastSettleMs:           2000,
 	}
 }
 
@@ -181,6 +186,12 @@ func (c *Config) Validate() error {
 	}
 	if c.ColorMaxPixels <= c.ColorMinPixels {
 		c.ColorMaxPixels = c.ColorMinPixels * 160
+	}
+	if c.CastSettleMs <= 0 {
+		c.CastSettleMs = 2000
+	}
+	if c.CastSettleMs > 5000 {
+		c.CastSettleMs = 5000
 	}
 
 	return nil

@@ -71,8 +71,11 @@ func (v *configPanel) Build(startRow int, parent ...Widget) (row int) {
 	makeRow("colorRedDelta", "Color Red Delta", fmt.Sprintf("%d", c.ColorRedDelta))
 	makeRow("colorBlueDelta", "Color Blue Delta", fmt.Sprintf("%d", c.ColorBlueDelta))
 	makeRow("colorMinValue", "Color Min Value", fmt.Sprintf("%d", c.ColorMinValue))
-	makeRow("colorMinPixels", "Color Min Pixels", fmt.Sprintf("%d", c.ColorMinPixels))
+	makeRow("colorMinPixels", "Color Min Pixels (red)", fmt.Sprintf("%d", c.ColorMinPixels))
+	makeRow("colorMinBluePixels", "Color Min Blue Pixels", fmt.Sprintf("%d", c.ColorMinBluePixels))
+	makeRow("colorMaxPairDistance", "Color Max Pair Distance", fmt.Sprintf("%d", c.ColorMaxPairDistance))
 	makeRow("colorMaxPixels", "Color Max Pixels", fmt.Sprintf("%d", c.ColorMaxPixels))
+	makeRow("castSettleMs", "Cast Settle Ms", fmt.Sprintf("%d", c.CastSettleMs))
 	v.applyBtn = Button(Txt("Apply Changes"), Background(pal.Primary), Foreground("white"), Relief("raised"), Borderwidth(1), Command(func() { v.ApplyChanges() }))
 	Grid(v.applyBtn, In(target), Row(row), Column(0), Columnspan(2), Sticky("we"), Padx("0.4m"), Pady("0.3m"))
 	row++
@@ -151,7 +154,10 @@ func (v *configPanel) ApplyChanges() {
 	assignInt("colorBlueDelta", &cfg.ColorBlueDelta)
 	assignInt("colorMinValue", &cfg.ColorMinValue)
 	assignInt("colorMinPixels", &cfg.ColorMinPixels)
+	assignInt("colorMinBluePixels", &cfg.ColorMinBluePixels)
+	assignInt("colorMaxPairDistance", &cfg.ColorMaxPairDistance)
 	assignInt("colorMaxPixels", &cfg.ColorMaxPixels)
+	assignInt("castSettleMs", &cfg.CastSettleMs)
 	if w := v.widgets["reelKey"]; w != nil {
 		val := strings.TrimSpace(v.text(w))
 		if val != "" {

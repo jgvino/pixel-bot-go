@@ -27,6 +27,9 @@ type FishingFSM struct {
 	detectorCtor     DetectorFactory
 	events           chan interface{}
 	listeners        []FishingStateListener
+	// suppressUntil blocks target acquisition for a short window after a cast,
+	// so the fading previous bobber is not mistaken for the new one.
+	suppressUntil time.Time
 }
 
 // NewFSM creates and starts a FishingFSM. The FSM starts in StateHalt.
@@ -58,10 +61,13 @@ func (f *FishingFSM) loop() {
 		case evtAddListener:
 			f.listeners = append(f.listeners, e.l)
 		case evtTargetAcquired:
-			if f.state == StateSearching {
+			if f.state == StateSearching && !f.suppressed() {
 				f.transition(StateMonitoring)
 			}
 		case evtTargetAcquiredAt:
+			if f.suppressed() {
+				break
+			}
 			f.coordX, f.coordY, f.coordSet = e.x, e.y, true
 			if f.state == StateSearching {
 				f.transition(StateMonitoring)
@@ -150,6 +156,13 @@ func (f *FishingFSM) transition(next FishingState) {
 				f.logger.Info("cast action executed", "key", f.cfg.ReelKey)
 			}
 		}
+		// Ignore detections for a moment: the previous bobber fades out over
+		// roughly a second, and the new one has not landed yet.
+		ms := 2000
+		if f.cfg != nil && f.cfg.CastSettleMs > 0 {
+			ms = f.cfg.CastSettleMs
+		}
+		f.suppressUntil = time.Now().Add(time.Duration(ms) * time.Millisecond)
 	case StateReeling:
 		if f.coordSet {
 			cx, cy := f.coordX, f.coordY
@@ -314,3 +327,9 @@ func recoverLog(logger *slog.Logger, msg string) {
 
 // Ensure contract satisfaction
 var _ FishingFSMContract = (*FishingFSM)(nil)
+
+// suppressed reports whether target acquisition is currently blocked because a
+// cast fired recently. Prevents locking onto the fading previous bobber.
+func (f *FishingFSM) suppressed() bool {
+	return !f.suppressUntil.IsZero() && time.Now().Before(f.suppressUntil)
+}

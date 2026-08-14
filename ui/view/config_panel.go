@@ -62,7 +62,7 @@ func (v *configPanel) Build(startRow int, parent ...Widget) (row int) {
 	makeRow("stopOnScore", "Stop On Score", fmt.Sprintf("%.3f", c.StopOnScore))
 	makeRow("refine", "Refine (true/false)", fmt.Sprintf("%t", c.Refine))
 	makeRow("returnBestEven", "Return Best Even (true/false)", fmt.Sprintf("%t", c.ReturnBestEven))
-	makeRow("reelKey", "Reel Key (e.g. F3 or R)", c.ReelKey)
+	makeRow("reelKey", "Cast Key (e.g. R or F3)", c.ReelKey)
 	makeRow("roiSizePx", "ROI Size Px", fmt.Sprintf("%d", c.ROISizePx))
 	makeRow("cooldownSeconds", "Cooldown Seconds", fmt.Sprintf("%d", c.CooldownSeconds))
 	makeRow("maxCastDurationSeconds", "Max Cast Duration Seconds", fmt.Sprintf("%d", c.MaxCastDurationSeconds))
@@ -174,7 +174,7 @@ func (v *configPanel) ApplyChanges() {
 		}
 	} else {
 		if v.logger != nil {
-			v.logger.Info("config saved", "path", v.cfgPath)
+			v.logger.Info("config saved", "path", config.ResolvePath(v.cfgPath))
 		}
 	}
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 )
 
 // Config holds runtime configuration for detection and app behavior.
@@ -25,7 +26,8 @@ type Config struct {
 	SelectionW int `json:"selection_w"`
 	SelectionH int `json:"selection_h"`
 
-	// Reel key configuration (e.g. "F3" or "R")
+	// Cast key configuration (e.g. "R" or "F3"). Despite the name this key is
+	// pressed on cast; reeling is a right-click at the detected coordinates.
 	ReelKey string `json:"reel_key"`
 
 	// Bite detection configuration (only actively used fields retained).
@@ -87,9 +89,9 @@ func DefaultConfig() *Config {
 		SelectionY:             0,
 		SelectionW:             0,
 		SelectionH:             0,
-		ReelKey:                "F3",
-		ROISizePx:              80,
-		MaxCastDurationSeconds: 16,
+		ReelKey:                "R",
+		ROISizePx:              120, // tuned: bobber must occupy a small fraction of the ROI
+		MaxCastDurationSeconds: 25,  // tuned: WoW casts run ~20-30s
 		CooldownSeconds:        8, // from pixle_bot_config.json
 		AnalysisScale:          1.0,
 		DarkMode:               true, // from pixle_bot_config.json
@@ -129,7 +131,7 @@ func (c *Config) Validate() error {
 		c.StopOnScore = 0.95
 	}
 	if c.ReelKey == "" {
-		c.ReelKey = "F3"
+		c.ReelKey = "R"
 	}
 	// Bite detection validation & sane clamps
 	if c.ROISizePx < 32 {
@@ -197,9 +199,38 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// ResolvePath returns the absolute location used to store the config file.
+//
+// A bare filename resolves to %APPDATA%\pixel-bot-go\<name> (or the platform
+// equivalent) so settings survive downloading a new binary into a new folder.
+// A file already present next to the executable takes priority, which keeps
+// existing installs working. Paths containing a separator are used verbatim.
+func ResolvePath(path string) string {
+	if path == "" {
+		path = "pixle_bot_config.json"
+	}
+	if filepath.Base(path) != path {
+		return path
+	}
+	// Prefer an existing file in the working directory (legacy installs).
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil || dir == "" {
+		return path
+	}
+	appDir := filepath.Join(dir, "pixel-bot-go")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		return path
+	}
+	return filepath.Join(appDir, path)
+}
+
 // Load attempts to read configuration from the given JSON file path. If the file does not
 // exist it returns DefaultConfig(). On JSON error it returns defaults with the error.
 func Load(path string) (*Config, error) {
+	path = ResolvePath(path)
 	cfg := DefaultConfig()
 	f, err := os.Open(path)
 	if err != nil {
@@ -219,6 +250,7 @@ func Load(path string) (*Config, error) {
 
 // Save writes the configuration to the given path in JSON format.
 func (c *Config) Save(path string) error {
+	path = ResolvePath(path)
 	_ = c.Validate()
 	f, err := os.Create(path)
 	if err != nil {

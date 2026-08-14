@@ -141,3 +141,26 @@ Set `use_color_detect` to `false` and the original path is restored unchanged.
 Template matching remains the better choice when the target is defined by
 structure rather than hue, or when the environment varies too much for fixed
 color thresholds.
+
+---
+
+## Settings persistence
+
+Config resolves to `%APPDATA%\pixel-bot-go\pixle_bot_config.json` (or the
+platform equivalent via `os.UserConfigDir`). A `pixle_bot_config.json` already
+present in the working directory takes priority, so existing installs are
+unaffected.
+
+This exists because the executable previously loaded config relative to its
+working directory: downloading a new build into a new folder silently reverted
+every setting to defaults.
+
+## Tuned defaults
+
+| Setting | Value | Reason |
+| ------- | ----- | ------ |
+| ROISizePx | 120 | At 80 the bobber fills over half the ROI and saturates `changedRatio` |
+| MaxCastDurationSeconds | 25 | Casts run ~20-30s; 16 abandoned live casts |
+| CastSettleMs | 2000 | The previous bobber fades over ~1s and was being reacquired |
+
+Measured result with these values: 14 catches across 21 casts.

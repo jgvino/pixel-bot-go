@@ -38,8 +38,22 @@ Color detection is scale-invariant, rotation-invariant, and cheaper per frame.
 **When `Color Detect` is `true`, these settings are ignored:** Min Scale, Max
 Scale, Scale Step, Threshold, Stride, Refine, Stop On Score, Return Best Even.
 
-Tune `Color Min Pixels` only (default 25). Nothing found → lower to 15. Locking
-onto gear or NPCs → raise to 40.
+Detection requires a red feather cluster **and** a blue one within `Color Max
+Pair Distance`. Requiring both is far more selective than either alone: a lone
+red flower or a lone blue quest marker is rejected.
+
+Tuned defaults ship ready to use — `ROI Size Px` 120, `Max Cast Duration
+Seconds` 25, `Cast Settle Ms` 2000. `Cast Settle Ms` blocks detection briefly
+after each cast so the fading previous bobber is not mistaken for the new one.
+
+Tune `Color Min Pixels` only. Nothing found → lower to 8. Locking onto gear or
+NPCs → raise to 20.
+
+### Settings location
+
+Config is stored at `%APPDATA%\pixel-bot-go\pixle_bot_config.json`, so your
+settings survive downloading a new build into a new folder. An existing
+`pixle_bot_config.json` next to the executable still takes priority.
 
 Set `Color Detect` to `false` to restore the original NCC behavior unchanged.
 

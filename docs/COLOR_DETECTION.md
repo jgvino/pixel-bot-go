@@ -30,18 +30,25 @@ Color detection sidesteps all three.
 Two passes over the selection rectangle:
 
 ```
-pass 1: build boolean mask
-    for each pixel:
-        isRed  = (R - B) >= RedDelta  and R >= MinValue
-        isBlue = (B - R) >= BlueDelta and B >= MinValue
-        mask   = isRed or isBlue
+pass 1: build two masks
+    isRed  = (R - B) >= RedDelta  and R >= MinValue
+    isBlue = (B - R) >= BlueDelta and B >= MinValue
 
-pass 2: 8-connected flood fill
-    find all connected blobs in mask
-    keep the largest
-    reject if size < MinPixels or size > MaxPixels
-    return centroid
+pass 2: 8-connected flood fill on each mask
+    redBlobs  = components sized [MinPixels, MaxPixels]
+    blueBlobs = components sized [MinBluePixels, MaxPixels]
+
+pass 3: pair matching
+    for each red blob:
+        find nearest blue blob within MaxPairDistance
+    keep the pair with the largest combined pixel count
+    return the midpoint of the two centroids
 ```
+
+Requiring red **and** blue in proximity is far more selective than either
+alone. A lone red flower or a lone blue quest marker is rejected: almost
+nothing in a lake scene has saturated red immediately adjacent to saturated
+blue. The discriminating power multiplies rather than adds.
 
 `Score` is normalized confidence, reaching `1.0` at three times `MinPixels`.
 `Scale` is always reported as `1.0` since no scaling is performed.
@@ -66,7 +73,9 @@ pass 2: 8-connected flood fill
 | ColorRedDelta | How far R must exceed B for a red feather pixel | ↑ stricter, fewer false pixels |
 | ColorBlueDelta | How far B must exceed R for a blue feather pixel | ↑ stricter, fewer false pixels |
 | ColorMinValue | Minimum channel brightness | ↑ rejects shadow noise, ↓ works in dim light |
-| ColorMinPixels | Smallest blob accepted as a bobber | ↑ fewer false positives, ↓ misses distant bobbers |
+| ColorMinPixels | Smallest accepted red cluster | ↑ fewer false positives, ↓ misses distant bobbers |
+| ColorMinBluePixels | Smallest accepted blue cluster | Blue is scarcer; keep low |
+| ColorMaxPairDistance | Max centroid gap between red and blue | ↑ looser pairing, ↓ rejects valid bobbers |
 | ColorMaxPixels | Largest blob accepted | ↓ rejects UI panels and large terrain features |
 
 When `UseColorDetect` is `true`, these settings are **ignored**: `MinScale`,
@@ -84,6 +93,8 @@ Start with defaults. Adjust one value at a time.
 | Nothing found | Lower `ColorMinPixels` to 15 |
 | Nothing found at any size | Lower `ColorRedDelta`/`ColorBlueDelta` to 40/35 |
 | Locks onto your gear or an NPC | Raise `ColorMinPixels` to 40 |
+| Locks onto a static object | Lower `ColorMaxPairDistance` to 25 |
+| Misses when blue feathers are dim | Lower `ColorMinBluePixels` to 3 |
 | Locks onto UI elements | Lower `ColorMaxPixels` to 1500 |
 | Works in daylight, fails at night | Lower `ColorMinValue` to 70 |
 | Finds a bobber 0.2s after cast | Blob thresholds too loose; raise all three deltas |
@@ -114,9 +125,11 @@ changedRatio ~1.0, diffBaseMean ~95-130
   weather, time of day, or shader settings will need retuning.
 * Assumes a bobber with saturated red/blue feathers. Other bobber skins need
   different channel rules, not just different deltas.
-* Anything else red or blue inside the selection rectangle competes. Keep the
-  selection tight on water and exclude your character, UI, and shoreline.
-* Selecting the largest blob means a larger red object in frame wins outright.
+* Anything with red adjacent to blue inside the selection rectangle competes.
+  Keep the selection tight on water and exclude your character, UI, and shoreline.
+* Blue feathers are the scarcer signal. At distance, in shadow, or at certain
+  bob angles they may vanish entirely, and a conjunction fails when either half
+  fails. Lower `ColorMinBluePixels` before loosening anything else.
 
 ---
 

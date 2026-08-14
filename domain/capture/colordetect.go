@@ -4,75 +4,50 @@ import "image"
 
 // ColorOptions configures hue-based bobber detection.
 //
-// Unlike NCC template matching, this approach is scale-invariant: it looks for
-// saturated red/blue feather pixels rather than a fixed-size pattern, so the
-// MinScale/MaxScale/ScaleStep/Threshold/Stride settings do not apply.
+// Detection requires a red feather cluster AND a blue feather cluster within
+// MaxPairDistance of each other. Requiring both is far more selective than
+// either alone: a lone red flower or a lone blue quest marker is rejected,
+// because almost nothing in a lake scene has saturated red immediately
+// adjacent to saturated blue.
 type ColorOptions struct {
-	RedDelta  int // how much R must exceed B to count as a red feather pixel
-	BlueDelta int // how much B must exceed R to count as a blue feather pixel
-	MinValue  int // minimum channel brightness; rejects dark noise
-	MinPixels int // smallest blob accepted as a bobber
-	MaxPixels int // largest blob accepted; rejects large UI/terrain regions
+	RedDelta        int // how much R must exceed B for a red feather pixel
+	BlueDelta       int // how much B must exceed R for a blue feather pixel
+	MinValue        int // minimum channel brightness; rejects dark noise
+	MinPixels       int // smallest accepted red cluster
+	MinBluePixels   int // smallest accepted blue cluster (blue is scarcer)
+	MaxPixels       int // largest accepted cluster; rejects UI/terrain
+	MaxPairDistance int // max centroid separation between red and blue
 }
 
-// DefaultColorOptions returns thresholds derived from Stonetalon lake samples.
+// DefaultColorOptions returns thresholds tuned for antialiased bobbers at
+// native resolution.
 func DefaultColorOptions() ColorOptions {
 	return ColorOptions{
-		RedDelta:  60,
-		BlueDelta: 50,
-		MinValue:  100,
-		MinPixels: 25,
-		MaxPixels: 4000,
+		RedDelta:        40,
+		BlueDelta:       35,
+		MinValue:        80,
+		MinPixels:       12,
+		MinBluePixels:   5,
+		MaxPixels:       4000,
+		MaxPairDistance: 40,
 	}
 }
 
-// DetectByColor finds the largest connected cluster of saturated red/blue
-// pixels in the frame and returns its centroid in frame coordinates.
-//
-// Score is a normalized confidence: it reaches 1.0 at three times MinPixels.
-// Scale is reported as 1.0 since no scaling is performed.
-func DetectByColor(frame *image.RGBA, opts ColorOptions) MultiScaleResult {
-	var res MultiScaleResult
-	if frame == nil {
-		return res
-	}
-	b := frame.Bounds()
-	w, h := b.Dx(), b.Dy()
-	if w <= 0 || h <= 0 {
-		return res
-	}
-	if opts.MinPixels <= 0 {
-		opts.MinPixels = 25
-	}
-	if opts.MaxPixels <= 0 {
-		opts.MaxPixels = 4000
-	}
+// blob is a connected component: pixel count plus centroid.
+type blob struct {
+	count int
+	cx    int
+	cy    int
+}
 
-	// Pass 1: build the feather mask.
-	mask := make([]bool, w*h)
-	for y := 0; y < h; y++ {
-		rowBase := y * w
-		for x := 0; x < w; x++ {
-			i := frame.PixOffset(b.Min.X+x, b.Min.Y+y)
-			if frame.Pix[i+3] == 0 {
-				continue
-			}
-			r := int(frame.Pix[i])
-			bl := int(frame.Pix[i+2])
-			isRed := r-bl >= opts.RedDelta && r >= opts.MinValue
-			isBlue := bl-r >= opts.BlueDelta && bl >= opts.MinValue
-			if isRed || isBlue {
-				mask[rowBase+x] = true
-			}
-		}
-	}
+// findBlobs returns all 8-connected components in mask sized within
+// [minPixels, maxPixels]. Coordinates are mask-relative.
+func findBlobs(mask []bool, w, h, minPixels, maxPixels int) []blob {
+	visited := make([]bool, len(mask))
+	stack := make([]int, 0, 512)
+	out := make([]blob, 0, 8)
 
-	// Pass 2: iterative flood fill (8-connected) to find the largest blob.
-	visited := make([]bool, w*h)
-	stack := make([]int, 0, 1024)
-	bestCount, bestSumX, bestSumY := 0, 0, 0
-
-	for start := 0; start < w*h; start++ {
+	for start := 0; start < len(mask); start++ {
 		if !mask[start] || visited[start] {
 			continue
 		}
@@ -111,22 +86,115 @@ func DetectByColor(frame *image.RGBA, opts ColorOptions) MultiScaleResult {
 			}
 		}
 
-		if count > bestCount {
-			bestCount, bestSumX, bestSumY = count, sumX, sumY
+		if count >= minPixels && count <= maxPixels {
+			out = append(out, blob{count: count, cx: sumX / count, cy: sumY / count})
+		}
+	}
+	return out
+}
+
+// DetectByColor locates the bobber by finding a red cluster paired with a
+// nearby blue cluster, and returns the midpoint between their centroids.
+//
+// Scale-invariant and rotation-invariant: no template, no scale sweep.
+// Scale is always reported as 1.0 since no scaling is performed.
+func DetectByColor(frame *image.RGBA, opts ColorOptions) MultiScaleResult {
+	var res MultiScaleResult
+	res.Scale = 1.0
+	res.ScalesEvaluated = 1
+
+	if frame == nil {
+		return res
+	}
+	b := frame.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w <= 0 || h <= 0 {
+		return res
+	}
+	if opts.MinPixels <= 0 {
+		opts.MinPixels = 12
+	}
+	if opts.MinBluePixels <= 0 {
+		opts.MinBluePixels = 5
+	}
+	if opts.MaxPixels <= opts.MinPixels {
+		opts.MaxPixels = 4000
+	}
+	if opts.MaxPairDistance <= 0 {
+		opts.MaxPairDistance = 40
+	}
+
+	// Pass 1: build separate red and blue masks.
+	redMask := make([]bool, w*h)
+	blueMask := make([]bool, w*h)
+	for y := 0; y < h; y++ {
+		rowBase := y * w
+		for x := 0; x < w; x++ {
+			i := frame.PixOffset(b.Min.X+x, b.Min.Y+y)
+			if frame.Pix[i+3] == 0 {
+				continue
+			}
+			r := int(frame.Pix[i])
+			bl := int(frame.Pix[i+2])
+			if r-bl >= opts.RedDelta && r >= opts.MinValue {
+				redMask[rowBase+x] = true
+			} else if bl-r >= opts.BlueDelta && bl >= opts.MinValue {
+				blueMask[rowBase+x] = true
+			}
 		}
 	}
 
-	res.ScalesEvaluated = 1
-	res.Scale = 1.0
-	if bestCount < opts.MinPixels || bestCount > opts.MaxPixels {
+	// Pass 2: connected components in each mask.
+	reds := findBlobs(redMask, w, h, opts.MinPixels, opts.MaxPixels)
+	if len(reds) == 0 {
+		return res
+	}
+	blues := findBlobs(blueMask, w, h, opts.MinBluePixels, opts.MaxPixels)
+	if len(blues) == 0 {
 		return res
 	}
 
-	res.X = b.Min.X + bestSumX/bestCount
-	res.Y = b.Min.Y + bestSumY/bestCount
+	// Pass 3: pair each red cluster with its nearest blue cluster. Among all
+	// valid pairs, prefer the one with the largest combined pixel count, which
+	// favors the closest/clearest bobber when several are in frame.
+	maxDistSq := opts.MaxPairDistance * opts.MaxPairDistance
+	bestScoreCount := 0
+	bestX, bestY := 0, 0
+	found := false
+
+	for _, r := range reds {
+		nearestDistSq := -1
+		var nearest blob
+		for _, bb := range blues {
+			dx := r.cx - bb.cx
+			dy := r.cy - bb.cy
+			d := dx*dx + dy*dy
+			if d <= maxDistSq && (nearestDistSq < 0 || d < nearestDistSq) {
+				nearestDistSq = d
+				nearest = bb
+			}
+		}
+		if nearestDistSq < 0 {
+			continue
+		}
+		combined := r.count + nearest.count
+		if combined > bestScoreCount {
+			bestScoreCount = combined
+			bestX = (r.cx + nearest.cx) / 2
+			bestY = (r.cy + nearest.cy) / 2
+			found = true
+		}
+	}
+
+	if !found {
+		return res
+	}
+
+	res.X = b.Min.X + bestX
+	res.Y = b.Min.Y + bestY
 	res.Found = true
 
-	s := float64(bestCount) / float64(opts.MinPixels*3)
+	s := float64(bestScoreCount) / float64((opts.MinPixels+opts.MinBluePixels)*3)
 	if s > 1.0 {
 		s = 1.0
 	}

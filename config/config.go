@@ -55,6 +55,12 @@ type Config struct {
 	ColorMinValue int `json:"color_min_value"`
 	// ColorMinPixels is the smallest blob accepted as a bobber.
 	ColorMinPixels int `json:"color_min_pixels"`
+	// ColorMinBluePixels is the smallest accepted blue cluster. Blue feathers
+	// are scarcer than red, so this is deliberately lower.
+	ColorMinBluePixels int `json:"color_min_blue_pixels"`
+	// ColorMaxPairDistance is the maximum centroid separation in pixels
+	// between the red and blue clusters for them to count as one bobber.
+	ColorMaxPairDistance int `json:"color_max_pair_distance"`
 	// ColorMaxPixels is the largest blob accepted; rejects large regions.
 	ColorMaxPixels int `json:"color_max_pixels"`
 }
@@ -84,10 +90,12 @@ func DefaultConfig() *Config {
 		AnalysisScale:          1.0,
 		DarkMode:               true, // from pixle_bot_config.json
 		UseColorDetect:         true,
-		ColorRedDelta:          60,
-		ColorBlueDelta:         50,
-		ColorMinValue:          100,
-		ColorMinPixels:         25,
+		ColorRedDelta:          40,
+		ColorBlueDelta:         35,
+		ColorMinValue:          80,
+		ColorMinPixels:         12,
+		ColorMinBluePixels:     5,
+		ColorMaxPairDistance:   40,
 		ColorMaxPixels:         4000,
 	}
 }
@@ -154,16 +162,22 @@ func (c *Config) Validate() error {
 
 	// Color detection clamps.
 	if c.ColorRedDelta <= 0 {
-		c.ColorRedDelta = 60
+		c.ColorRedDelta = 40
 	}
 	if c.ColorBlueDelta <= 0 {
-		c.ColorBlueDelta = 50
+		c.ColorBlueDelta = 35
 	}
 	if c.ColorMinValue <= 0 {
-		c.ColorMinValue = 100
+		c.ColorMinValue = 80
 	}
 	if c.ColorMinPixels <= 0 {
-		c.ColorMinPixels = 25
+		c.ColorMinPixels = 12
+	}
+	if c.ColorMinBluePixels <= 0 {
+		c.ColorMinBluePixels = 5
+	}
+	if c.ColorMaxPairDistance <= 0 {
+		c.ColorMaxPairDistance = 40
 	}
 	if c.ColorMaxPixels <= c.ColorMinPixels {
 		c.ColorMaxPixels = c.ColorMinPixels * 160
